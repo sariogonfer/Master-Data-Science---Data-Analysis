@@ -1,0 +1,211 @@
+---
+title: "Propuesta análisis de datos. Deportistas australianos."
+author: "César González Fernández"
+date: '2017-2018'
+output:
+  pdf_document:
+    includes:
+      in_header: header/header.tex
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '4'
+fontsize: 12pt
+---
+
+\newpage
+
+```{r, echo=FALSE, message=FALSE}
+require(knitr)
+require(dplyr)
+require(ggplot2)
+```
+
+# Introducción
+
+En el fichero Deportistas.csv aparecen datos sobre estatura, peso, índice de masa corporal, etc. en una muestra de deportistas profesionales australianos.
+
+En concreto aparecen las siguientes variables:
+
+* Sex: Sexo del deportista (0=hombre, 1=mujer);
+* Ht: Altura (en cm.)
+* Wt: Peso (en Kg.);
+* BMI: Índice de masa corporal;
+* Bfat: Porcentaje de grasa corporal;
+* Sport: Deporte;
+
+## Análisis descriptivo de los datos.
+
+Se desea realizar un análisis descriptivo de los datos.
+
+En primer lugar deberemos cargar los datos en nuestro entorno. Al ser un fichero CSV, la carga es sencilla.
+
+```{r}
+athletes.df <- read.csv("./deportistas.csv")
+athletes.df$Sex <- c('Masculino', 'Femenino')[athletes.df$Sex + 1]
+kable(head(athletes.df), align = 'c')
+```
+
+En la tabla superior podemos ver una muestra de los datos cargados.
+
+Haciendo uso de la función summary, podemos ver también algunos estadísticos de las diferentes columnas.
+
+```{r}
+kable(summary(athletes.df))
+```
+
+Como son los datos de las columnas BMI y Bfat en los que vamos a utilizar en los siguientes apartados, vamos a ver sus histogramas.
+
+```{r}
+ggplot(athletes.df, aes(x=BMI, fill=Sex)) +
+  geom_histogram(binwidth=1, position="dodge")
+  xlab('Índice de masa corporal')
+```
+
+```{r}
+ggplot(athletes.df, aes(x=Bfat, fill=Sex)) +
+  geom_histogram(binwidth=2, position="dodge") +
+  xlab('Índice de grasa corporal')
+```
+
+## Intervalo de confianza para BMI medio al 98% por sexo.
+
+Vamos a calcular el interbalo de confianza para BMI medio al 98%. Vamos a hacer una diferenciación por sexos.
+
+Empezaremos por los deportistas masculinos:
+
+```{r}
+athletes.df.m = athletes.df %>% filter(Sex == 'Masculino')
+kable(head(athletes.df.m), align = 'c')
+kable(summary(athletes.df.m))
+```
+
+Calculamos el número de datos, la media muestral y la varianza:
+
+```{r}
+n.m.bmi <- length(athletes.df.m$BMI)
+mean.m.bmi <- mean(athletes.df.m$BMI)
+var.m.bmi <- var(athletes.df.m$BMI)
+```
+
+Lo cuál nos da que n = `r n.m.bmi`, $\overline{X} =$ `r mean.m.bmi` y $\sigma =$ `r var.m.bmi`.
+
+Dado que la muestra con la que trabajamos es grande (n > 30), podemos aplicar el Teorema de Límite Central y obtener:
+$$
+\frac{\overline{X} - \mu}{S / \sqrt{n}} \approx N(0, 1)
+$$
+Y por tanto calcular el intervalo de confianza como:
+$$
+[\overline{X}-z_{1-\alpha/2}\frac{\sigma}{\sqrt{n}},\overline{X}+z_{1-\alpha/2}\frac{\sigma}{\sqrt{n}}]
+$$
+Siendo en nuestro caso $\alpha = 0.02$.
+
+```{r}
+alpha <- 1 - 0.98
+lim.inf.m.bmi <- mean.m.bmi - qnorm(1 - alpha / 2) *
+  var.m.bmi / sqrt(n.m.bmi)
+lim.sup.m.bmi <- mean.m.bmi + qnorm(1 - alpha / 2) *
+  var.m.bmi / sqrt(n.m.bmi)
+```
+
+Asi tenemos que el intervalo de confianza al 98% se encuentra entre `r lim.inf.m.bmi` y `r lim.sup.m.bmi`
+
+Repetimos lo mismo, pero esta vez con los datos de las deportistas de genero femenino:
+
+```{r}
+athletes.df.f = athletes.df %>% filter(Sex == 'Femenino')
+n.f.bmi <- length(athletes.df.f$BMI)
+mean.f.bmi <- mean(athletes.df.f$BMI)
+var.f.bmi <- var(athletes.df.f$BMI)
+lim.inf.f.bmi <- mean.f.bmi - qnorm(1 - alpha / 2) *
+  var.f.bmi / sqrt(n.f.bmi)
+lim.sup.f.bmi <- mean.f.bmi + qnorm(1 - alpha / 2) *
+  var.f.bmi / sqrt(n.f.bmi)
+```
+
+Obtenemos que  n = `r n.f.bmi`, $\overline{X} =$ `r mean.f.bmi` y $\sigma =$ `r var.f.bmi`. Y que el intervalo de confianza al 98% se encuentra entre `r lim.inf.f.bmi` y `r lim.sup.f.bmi`.
+
+## Diferencias entre el BMI de los deportistas masculinos y femeninos.
+
+A la vista de los datos que tenemos, podrimos concluir lo siguiente:
+
+> La BMI de los deportistas masculinos es mayor que la de las deportistas femeninas.
+
+```{r, echo=FALSE}
+ggplot(athletes.df, aes(x=Sex, y=BMI, fill=Sex)) + geom_boxplot() +
+  geom_boxplot() +
+  xlab('Sexo') +
+  ylab('Índice de masa corporal')
+```
+
+Vamos a contrastar pues esta hipótesis. Diferenciaremos esntre:
+
+* Hipótesis nula ( $H_0$ ): La BMI de los deportistas masculinos es mayor que la de los deportistas femeninos. $BMI_m$ > $BMI_f$
+* Hipótesis alternativa ( $H_0$ ): La BMI de los deportistas masculinos es menor o igual que la de los deportistas femeninos. $BMI_m$ <= $BMI_f$
+
+Nos encontramos en que las muestras con las que trabajamos se tratan de muestras independientes (deportistas masculinos vs deportistas femeninas). 
+
+En primer lugar, vamos a comprobar si podemos asumir que la varianza de ambas muestras son igules:
+
+```{r}
+var.bmi.test <- var.test(athletes.df.f$BMI, athletes.df.m$BMI,
+                         alternative = "two.sided", conf.level = 0.95)
+var.bmi.test
+```
+
+El valor de p-value, `r var.bmi.test$p.value`, es muy alto, por lo que podemos asumir que las varianzas son iguales.
+
+Asumiento lo anterior, podemos hacer una comparación de las medias:
+
+```{r}
+bmi.test <- t.test(athletes.df.m$BMI, athletes.df.f$BMI,
+                   alternative = "less", conf.level = 0.95,
+                   var.equal = TRUE)
+bmi.test
+```
+
+Ahora tenemos que p-value es muy alta, es `r bmi.test$p.value`. Por tanto podemos decir que no hay evidencias de que la hipótesis nula, $H_0$, sea falsa.
+
+
+## Y con respecto a la grasa corporal, ¿qué podemos decir?
+
+Por los datos de la muestra podemos decir que:
+
+> El índice de grasa corporal de las deportistas femeninas es mayor que la de los deportistas masculinos.
+
+```{r, echo=FALSE}
+ggplot(athletes.df, aes(x=Sex, y=Bfat, fill=Sex)) +
+  geom_boxplot() +
+  xlab('Sexo') +
+  ylab('Índice de grasa corporal')
+```
+
+
+Es este caso definiremos:
+
+* $H_0$: El índice de grasa corporal de las deportistas femeninas es mayor que el de los deportistas masculinos. $Bfat_f$ > $Bfat_m$
+* $H_1$: El índice de grasa corporal de las deportistas femeninas es menor o igual que la de los deportistas masculinos. $Bfat_f$ <= $Bfat_m$
+
+Al igual que en el apartado anterior, empezamos estudiando si podemos asumir que la variana de ambas poblaciones es igual.
+
+```{r}
+var.bfat.test <- var.test(athletes.df.f$Bfat, athletes.df.m$Bfat,
+                         alternative = "two.sided", conf.level = 0.95)
+var.bfat.test
+```
+
+En este caso, p-value es muy pequeño, por tanto rechazamos la hipotesis de que ambas varianzas son iguales. 
+
+Sabiendo esto:
+
+```{r}
+bfat.test <- t.test(athletes.df.f$Bfat, athletes.df.m$Bfat,
+                   alternative = "less", conf.level = 0.95)
+bfat.test
+```
+
+Siendo como es en este caso p-valor igual a `r bfat.test$p.valor`, podemos rechazar la hipóstesis alternativa.
